@@ -12,7 +12,7 @@ export PATH=$PATH:/usr/local/bin
 FMT_ERROR=0
 
 for file in "$@"; do
-  terraform fmt -write=true "$file" || FMT_ERROR=$?
+  terraform fmt -write=true -diff "$file" || FMT_ERROR=$?
 done
 
 # reset path to the original value
