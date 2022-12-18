@@ -34,6 +34,14 @@
   files: \.tf$
   exclude: \.+.terraform\/.*$
 
+- id: tfsec
+  name: tfsec
+  description: Security linter for Terraform source code
+  entry: hooks/tfsec.sh
+  language: script
+  files: \.tf$
+  exclude: \.+.terraform\/.*$
+
 - id: terragrunt-hclfmt
   name: Terragrunt hclfmt
   description: Rewrites all Terragrunt configuration files to a canonical format
