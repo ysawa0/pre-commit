@@ -7,8 +7,29 @@ set -e
 # workaround to allow GitHub Desktop to work, add this (hopefully harmless) setting here.
 export PATH=$PATH:/usr/local/bin
 
-
+# echo "======== FILES:"
+directories=()
 for file in "$@"; do
-  echo "$file"
-  tfsec $file
+  echo "file: $file"
+  if [ -d "$file" ]; then
+    directories+=("$file")
+  else
+    directories+=("$(dirname "$file")")
+  fi
+  echo "directories: ${directories[*]}"
+done
+
+unique_directories=$(printf "%s\n" "${directories[@]}" | sort -u)
+unique_directories=($unique_directories)
+echo "$unique_directories"
+
+echo "========= START SCAN ==========="
+
+for d in "${unique_directories[@]}"; do
+  echo "RUN tfsec on: $d"
+  if [ "$d" = "." ]; then
+    echo "SKIP $d"
+    continue
+  fi
+  tfsec "$d"
 done
