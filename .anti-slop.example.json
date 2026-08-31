@@ -1,0 +1,16 @@
+{
+  "preset": "recommended",
+  "fail_level": "warning",
+  "rules": {
+    "density.em-dash": {
+      "severity": "warning",
+      "max": 5,
+      "window_words": 500
+    },
+    "rhetoric.negative-parallelism": {
+      "max": 2,
+      "window_words": 700
+    },
+    "phrase.marketing-language": "off"
+  }
+}
