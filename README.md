@@ -1,150 +1,145 @@
-[![Maintained by Gruntwork.io](https://img.shields.io/badge/maintained%20by-gruntwork.io-%235849a6.svg)](https://gruntwork.io/?ref=repo_pre-commit)
-
 # Pre-commit hooks
 
-This repo defines Git pre-commit hooks intended for use with [pre-commit](http://pre-commit.com/). The currently
-supported hooks are:
+This repository provides reusable hooks for [pre-commit](https://pre-commit.com/). It includes infrastructure checks inherited from the original Gruntwork hook collection and `anti-slop`, a deterministic Markdown prose linter.
 
-* **terraform-fmt**: Automatically run `terraform fmt` on all Terraform code (`*.tf` files).
-* **terraform-validate**: Automatically run `terraform validate` on all Terraform code (`*.tf` files).
-* **packer-validate**: Automatically run `packer validate` on all Packer code (`*.pkr.*` files).
-* **terragrunt-hclfmt**: Automatically run `terragrunt hclfmt` on all Terragrunt configurations.
-* **tflint**: Automatically run [`tflint`](https://github.com/terraform-linters/tflint) on all Terraform code (`*.tf` files).
-* **shellcheck**: Run [`shellcheck`](https://www.shellcheck.net/) to lint files that contain a bash [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)).
-* **gofmt**: Automatically run `gofmt` on all Golang code (`*.go` files).
-* **goimports**: Automatically run `goimports` on all Golang code (`*.go` files).
-* **golint**: Automatically run `golint` on all Golang code (`*.go` files).
-* **yapf**: Automatically run [`yapf`](https://github.com/google/yapf) on all python code (`*.py` files).
-* **helmlint** Automatically run [`helm lint`](https://helm.sh/docs/helm/helm_lint/) on your Helm chart files. [See caveats here](#helm-lint-caveats).
-* **markdown-link-check** Automatically run [markdown-link-check](https://github.com/tcort/markdown-link-check) on
-  markdown doc files.
+## anti-slop
 
+`anti-slop` catches writing that becomes distracting through repetition, vague filler, canned rhetoric, or excessive formatting. It does not estimate whether a person or a model wrote the text.
 
+The hook is:
 
+- deterministic and explainable;
+- dependency-free on Python 3;
+- aware of Markdown and MDX structure;
+- conservative about one-off stylistic choices;
+- configurable by rule, severity, and density threshold;
+- suitable for local use, pre-commit, and CI annotations.
 
-## General Usage
+It ignores code fences, inline code, raw code blocks, URLs, front matter, comments, blockquotes, tables, link destinations, and MDX tags. Repetition rules reset at heading boundaries so templated API reference sections do not look like monotonous prose.
 
-In each of your repos, add a file called `.pre-commit-config.yaml` with the following contents:
+### Install
+
+Add the hook to `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-  - repo: https://github.com/gruntwork-io/pre-commit
-    rev: <VERSION> # Get the latest from: https://github.com/gruntwork-io/pre-commit/releases
+  - repo: https://github.com/ysawa0/pre-commit
+    rev: v0.2.0
     hooks:
+      - id: anti-slop
+```
+
+Then run:
+
+```console
+pre-commit install
+pre-commit run anti-slop --all-files
+```
+
+The recommended preset reports high-confidence writing problems as warnings. Informational findings remain visible but do not fail the hook. A mechanical artifact, such as pasted chatbot citation residue, is an error.
+
+### Direct CLI use
+
+```console
+hooks/anti_slop.py README.md docs/*.md
+hooks/anti_slop.py --preset strict README.md
+hooks/anti_slop.py --format json README.md
+hooks/anti_slop.py --format github README.md
+hooks/anti_slop.py --list-rules
+```
+
+Exit status is `1` when a diagnostic reaches the configured failure level, `0` when the files pass, and `2` for configuration or input errors.
+
+### Configuration
+
+Place `.anti-slop.json` in the repository root:
+
+```json
+{
+  "preset": "recommended",
+  "fail_level": "warning",
+  "rules": {
+    "density.em-dash": {
+      "severity": "warning",
+      "max": 5,
+      "window_words": 500
+    },
+    "phrase.marketing-language": "off"
+  }
+}
+```
+
+A rule can be `off`, `info`, `warning`, or `error`. Unknown rule names and option names fail closed instead of silently doing nothing.
+
+### Local suppression
+
+```markdown
+<!-- anti-slop-disable-next-line verbosity.filler -->
+In order to preserve a quoted legal term, keep this line unchanged.
+
+<!-- anti-slop-disable rhetoric.* -->
+This section intentionally uses repeated rhetorical structure.
+<!-- anti-slop-enable rhetoric.* -->
+
+This phrase is deliberate. <!-- anti-slop-ignore phrase.marketing-language -->
+```
+
+Selectors accept exact rule IDs, category wildcards such as `verbosity.*`, and `all`.
+
+See [the anti-slop guide](docs/anti-slop.md) for the complete rule catalog and design notes. The [coffee calibration example](examples/anti-slop/README.md) shows the deliberately bloated input, the revised article, and the tuning results.
+
+## Other hooks
+
+- `terraform-fmt`: format Terraform files.
+- `terraform-validate`: validate Terraform configuration.
+- `packer-validate`: validate modern Packer templates.
+- `terragrunt-hclfmt`: format Terragrunt configuration.
+- `tflint`: lint Terraform source.
+- `tfsec`: scan Terraform for security problems.
+- `shellcheck`: lint shell scripts.
+- `gofmt`: format Go source.
+- `goimports`: format Go source and imports.
+- `golint`: run the legacy Go linter.
+- `yapf`: format Python source.
+- `helmlint`: lint changed Helm charts.
+- `markdown-link-check`: check links in Markdown.
+- `check-terratest-skip-env`: reject uncommented Terratest skip environment variables.
+
+Each hook can be selected in the same repository entry:
+
+```yaml
+repos:
+  - repo: https://github.com/ysawa0/pre-commit
+    rev: v0.2.0
+    hooks:
+      - id: anti-slop
       - id: terraform-fmt
-      - id: terraform-validate
       - id: tflint
       - id: shellcheck
-      - id: gofmt
-      - id: golint
 ```
 
-Next, have every developer: 
+## Helm lint caveat
 
-1. Install [pre-commit](http://pre-commit.com/). E.g. `brew install pre-commit`.
-1. Run `pre-commit install` in the repo.
+`helmlint` searches upward from each changed file for `Chart.yaml` and runs once for each affected chart. A chart can provide `linter_values.yaml` for values that are required during linting but should not have production defaults.
 
-That’s it! Now every time you commit a code change (`.tf` file), the hooks in the `hooks:` config will execute.
+## Shellcheck arguments
 
-
-
-
-## Running Against All Files At Once
-
-
-### Example: Formatting all files
-
-If you'd like to format all of your code at once (rather than one file at a time), you can run:
-
-```bash
-pre-commit run terraform-fmt --all-files
-```
-
-
-
-### Example: Enforcing in CI
-
-If you'd like to enforce all your hooks, you can configure your CI build to fail if the code doesn't pass checks by
-adding the following to your build scripts:
-
-```bash
-pip install pre-commit
-pre-commit install
-pre-commit run --all-files
-```
-
-If all the hooks pass, the last command will exit with an exit code of 0. If any of the hooks make changes (e.g.,
-because files are not formatted), the last command will exit with a code of 1, causing the build to fail.
-
-
-
-
-## Helm Lint Caveats
-
-### Detecting charts
-
-The `helmlint` pre-commit hook runs `helm lint` on the charts that have been changed by the commit. It will run once per
-changed chart that it detects.
-
-Note that charts are detected by walking up the directory tree of the changed file and looking for a `Chart.yaml` file
-that exists on the path.
-
-### linter_values.yaml
-
-`helm lint` requires input values to look for configuration errors in your helm chart. However, this means that the
-linter needs a complete values file. Because we want to develop charts that define required values that the operator
-should provide, we don't want to specify defaults for all the values the chart expects in the default `values.yaml`
-file.
-
-Therefore, to support this, this pre-commit hook looks for a special `linter_values.yaml` file defined in the chart
-path. This will be combined with the `values.yaml` file before running `helm lint`. In your charts, you should define
-the required values in `linter_values.yaml`.
-
-For example, suppose you had a helm chart that defined two input values: `containerImage` and `containerTag`. Suppose
-that your chart required `containerImage` to be defined, but not `containerTag`. To enforce this, you created the
-following `values.yaml` file for your chart:
+The shell hook accepts Shellcheck's `--enable` option:
 
 ```yaml
-# values.yaml
-
-# containerImage is required and defines which image to use
-
-# containerTag specifies the image tag to use. Defaults to latest.
-containerTag: latest
+hooks:
+  - id: shellcheck
+    args: ["--enable", "require-variable-braces,deprecate-which"]
 ```
 
-If you run `helm lint` on this chart, it will fail because somewhere in your chart you will reference
-`.Values.containerImage` which will be undefined with this `values.yaml` file. To handle this, you can define a
-`linter_values.yaml` file that defines `containerImage`:
+## Testing
 
-```yaml
-# linter_values.yaml
-containerImage: nginx
+```console
+python -m unittest discover -s test -p '*_test.py' -v
+python -m compileall -q hooks test
+hooks/anti_slop.py --fail-level warning README.md docs/anti-slop.md examples/anti-slop/coffee-after.md
 ```
-
-Now when the pre-commit hook runs, it will call `helm lint` with both `linter_values.yaml` and `values.yaml`:
-
-```
-helm lint -f values.yaml -f linter_values.yaml .
-```
-
-## Shellcheck Arguments
-
-To enable optional shellcheck features you can use the `--enable` flag.
-Other shellcheck flags can not be passed through.
-
-```yaml
-repos:
-  - repo: https://github.com/gruntwork-io/pre-commit
-    rev: <VERSION>
-    hooks:
-      - id: shellcheck
-        args: ["--enable require-variable-braces,deprecate-which"]
-```
-
 
 ## License
 
-This code is released under the Apache 2.0 License. Please see [LICENSE](LICENSE) and [NOTICE](NOTICE) for more details.
-
-Copyright &copy; 2019 Gruntwork, Inc.
+This code is released under the Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
